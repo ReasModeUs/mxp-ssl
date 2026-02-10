@@ -18,4 +18,4 @@
 ## 📥 Installation
 
 ```bash
-bash <(curl -Ls https://raw.githubusercontent.com/ReasModeUs/mrz-script/main/mrz-ssl.sh)
+curl -Ls https://raw.githubusercontent.com/ReasModeUs/mrz-script/main/mrz-ssl.sh -o mrz-ssl.sh && chmod +x mrz-ssl.sh && ./mrz-ssl.sh
