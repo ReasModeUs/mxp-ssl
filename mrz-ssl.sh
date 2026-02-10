@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # ==========================================================
-# MRZ SSL Manager - v2.8 (Full Auto Marzban)
+# MRZ SSL Manager - v3.0 (Official Marzban Docs Edition)
 # Copyright (c) 2026 ReasModeUs
 # GitHub: https://github.com/ReasModeUs
 # ==========================================================
@@ -15,100 +15,86 @@ RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; CYAN='\033[0;36m'; NC
 [[ $EUID -ne 0 ]] && echo -e "${RED}Error: Root access required.${NC}" && exit 1
 
 log_info() { echo -e "${GREEN}[INFO] $1${NC}"; echo "[$(date '+%Y-%m-%d %H:%M:%S')] [INFO] $1" >> "$LOG_FILE"; }
-log_err() { echo -e "${RED}[ERROR] $1${NC}"; echo "[$(date '+%Y-%m-%d %H:%M:%S')] [ERROR] $1" >> "$LOG_FILE"; }
 
-# --- Marzban Smart Automator ---
-auto_configure_marzban() {
-    log_info "Starting auto-configuration for Marzban..."
+deploy_marzban_official() {
+    local domain=$1; local cert=$2; local key=$3
     
-    # 1. Finding Marzban directory (where docker-compose.yml and .env are)
-    local marzban_path=""
-    local possible_paths=("/opt/marzban" "/var/lib/marzban" "/root/marzban" "$(pwd)")
+    # 1. Official paths from Marzban docs
+    local HOST_CERT_DIR="/var/lib/marzban/certs"
+    mkdir -p "$HOST_CERT_DIR"
     
-    for path in "${possible_paths[@]}"; do
-        if [[ -f "$path/.env" && -f "$path/docker-compose.yml" ]]; then
-            marzban_path="$path"
-            break
-        fi
+    cp "$cert" "$HOST_CERT_DIR/fullchain.pem"
+    cp "$key" "$HOST_CERT_DIR/key.pem"
+    
+    # 2. Finding the .env file (Checking common install locations)
+    local env_file=""
+    for path in "/opt/marzban/.env" "/var/lib/marzban/.env" "/root/marzban/.env"; do
+        if [[ -f "$path" ]]; then env_file="$path"; break; fi
     done
 
-    if [[ -z "$marzban_path" ]]; then
-        marzban_path=$(find / -name "docker-compose.yml" -exec grep -l "marzban" {} + | xargs -I {} dirname {} | head -n 1)
-    fi
-
-    if [[ -n "$marzban_path" ]]; then
-        log_info "Marzban detected at: $marzban_path"
+    if [[ -n "$env_file" ]]; then
+        log_info "Updating .env at $env_file"
         
-        # 2. Backup and Update .env file
-        cp "$marzban_path/.env" "$marzban_path/.env.bak"
+        # Remove existing SSL variables to prevent duplication
+        sed -i '/UVICORN_SSL_CERTFILE/d' "$env_file"
+        sed -i '/UVICORN_SSL_KEYFILE/d' "$env_file"
         
-        # Remove existing SSL lines to avoid duplicates
-        sed -i '/UVICORN_SSL_CERTFILE/d' "$marzban_path/.env"
-        sed -i '/UVICORN_SSL_KEYFILE/d' "$marzban_path/.env"
+        # Add variables according to official examples
+        echo "UVICORN_SSL_CERTFILE=\"/var/lib/marzban/certs/fullchain.pem\"" >> "$env_file"
+        echo "UVICORN_SSL_KEYFILE=\"/var/lib/marzban/certs/key.pem\"" >> "$env_file"
         
-        # Add new SSL configurations
-        echo 'UVICORN_SSL_CERTFILE="/var/lib/marzban/certs/fullchain.pem"' >> "$marzban_path/.env"
-        echo 'UVICORN_SSL_KEYFILE="/var/lib/marzban/certs/key.pem"' >> "$marzban_path/.env"
-        
-        log_info ".env file updated and backed up."
-
-        # 3. Restarting Marzban using Docker Compose
-        log_info "Restarting Marzban to apply changes..."
-        cd "$marzban_path" || return
-        docker compose up -d || docker-compose up -d
-        log_info "Marzban is now running on HTTPS!"
+        # 3. Restarting Marzban
+        log_info "Restarting Marzban via Docker Compose..."
+        cd "$(dirname "$env_file")" && docker compose up -d
+        echo -e "${GREEN}Marzban is now configured with SSL (Official Method).${NC}"
     else
-        log_err "Marzban installation directory not found. Please update .env manually."
+        echo -e "${YELLOW}Warning: .env file not found. Certs copied to $HOST_CERT_DIR. Please update your .env manually.${NC}"
     fi
 }
 
 issue_cert() {
     clear
     read -rp "Enter Domain: " domain
-    read -rp "Enter Email: " user_email
-    [[ -z "$user_email" ]] && user_email="admin@$domain"
+    read -rp "Enter Email: " email
+    [[ -z "$email" ]] && email="admin@$domain"
 
-    echo -e "\nChoose Panel:\n1) Marzban (Fully Automated)\n2) Sanaei/PasarGuard/Other"
+    echo -e "Select Panel:\n1) Marzban (Auto-deploy)\n2) Sanaei/Other (Manual Path)"
     read -rp "Choice: " p_choice
 
-    # Standard Issue Logic (Same as v2.5 but better)
+    # Switch to Let's Encrypt and release ports
     "$ACME_SCRIPT" --set-default-ca --server letsencrypt &> /dev/null
-    "$ACME_SCRIPT" --register-account -m "$user_email" &> /dev/null
-
-    # Stopping services to free Port 80
+    "$ACME_SCRIPT" --register-account -m "$email" &> /dev/null
+    
+    # Freeing Port 80
     systemctl stop nginx x-ui 3x-ui marzban 2>/dev/null
-    local pids=$(lsof -t -i:80 -sTCP:LISTEN)
-    [[ -n "$pids" ]] && kill -9 $pids 2>/dev/null
+    fuser -k 80/tcp 2>/dev/null
+    sleep 1
 
+    log_info "Requesting SSL for $domain..."
     if "$ACME_SCRIPT" --issue -d "$domain" --standalone --force; then
         local cp="$HOME/.acme.sh/${domain}_ecc/fullchain.cer"
         local kp="$HOME/.acme.sh/${domain}_ecc/${domain}.key"
         
         if [[ "$p_choice" == "1" ]]; then
-            # Copy files to Marzban standard cert path
-            mkdir -p /var/lib/marzban/certs
-            cp "$cp" /var/lib/marzban/certs/fullchain.pem
-            cp "$kp" /var/lib/marzban/certs/key.pem
-            # Run the Auto-Configurator
-            auto_configure_marzban
+            deploy_marzban_official "$domain" "$cp" "$kp"
         else
             mkdir -p "/root/certs/$domain"
             cp "$cp" "/root/certs/$domain/public.crt"
             cp "$kp" "/root/certs/$domain/private.key"
-            log_info "Success! Certs saved in /root/certs/$domain/"
+            echo -e "${GREEN}Success! Paths for your panel:${NC}"
+            echo -e "Public Cert: /root/certs/$domain/public.crt"
+            echo -e "Private Key: /root/certs/$domain/private.key"
         fi
     else
-        log_err "SSL Request failed. Check your DNS/Cloudflare."
+        echo -e "${RED}SSL issue failed. Ensure Cloudflare Proxy is OFF.${NC}"
     fi
-    systemctl start nginx x-ui 3x-ui 2>/dev/null
+    systemctl start x-ui 3x-ui nginx 2>/dev/null
 }
 
 show_menu() {
     clear
-    echo -e "${CYAN}==============================================${NC}"
-    echo -e "      MRZ SSL Manager v2.8 (Full Auto) "
-    echo -e "${CYAN}==============================================${NC}"
-    echo "1) Get New Certificate"
+    echo -e "${CYAN}MRZ SSL Manager v3.0 (Official Support)${NC}"
+    echo "1) Get New SSL Certificate"
     echo "2) List All Certificates"
     echo "0) Exit"
     read -rp "Option: " opt
@@ -120,8 +106,12 @@ show_menu() {
     esac
 }
 
-# Install Deps
-apt-get update -qq && apt-get install -y socat lsof curl 2>/dev/null
-[[ ! -f "$ACME_SCRIPT" ]] && curl -s https://get.acme.sh | sh &>/dev/null
-[[ ! -f "$SCRIPT_PATH" ]] && cp "$0" "$SCRIPT_PATH" && chmod +x "$SCRIPT_PATH"
+# Auto-update Script to System
+install_deps() {
+    apt-get update -qq && apt-get install -y socat lsof curl &>/dev/null
+    [[ ! -f "$ACME_SCRIPT" ]] && curl -s https://get.acme.sh | sh &>/dev/null
+    [[ ! -f "$SCRIPT_PATH" ]] && cp "$0" "$SCRIPT_PATH" && chmod +x "$SCRIPT_PATH"
+}
+
+install_deps
 show_menu
