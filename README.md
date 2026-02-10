@@ -1,29 +1,27 @@
-# MRZ SSL Manager
+# MRZ SSL Manager (v2.1)
 
-![Version](https://img.shields.io/badge/version-2.1-blue.svg)
-![License](https://img.shields.io/badge/license-MIT-green.svg)
-
-**MRZ SSL Manager** is an automated SSL management tool. **Version 2.1** now supports Port 443 (TLS-ALPN) for environments where Port 80 is restricted.
-
----
-
-## 🚀 Features
-- **New: Port 443 (TLS-ALPN) Support** (Use if Port 80 is blocked).
-- **Auto-Detection:** Detects and stops conflicting services on Port 80 or 443.
-- **Marzban Integration:** Auto-installs to `/var/lib/marzban/certs`.
-- **Easy CLI:** Simply type `mrz-ssl` to manage everything.
-
----
+A professional SSL management tool for VPS, optimized for VPN panels.
 
 ## 📥 Installation
+
+Run the following command to download and start the manager:
 
 ```bash
 curl -Ls https://raw.githubusercontent.com/ReasModeUs/mrz-script/main/mrz-ssl.sh -o mrz-ssl.sh && chmod +x mrz-ssl.sh && ./mrz-ssl.sh
 ```
-
-## 🛡️ Firewall Setup (Important)
-If you are using UFW (Ubuntu Firewall), you must allow ports 80 and 443:
-```bash
+Once installed, you can simply run it anytime by typing:
+```
+mrz-ssl
+```
+🚀 Features
+Dual Port Support: Choose between Port 80 or Port 443 (TLS-ALPN) for validation.
+Auto-Kill: Automatically stops Nginx, X-UI, or Marzban to free up ports during issuance.
+Marzban Integration: Auto-copies certs and restarts the container.
+Multi-Domain: Saves certs in separate folders for multiple domains.
+🛡️ Firewall Setup
+Make sure your server's firewall allows incoming traffic on ports 80 and 443:
+```
 ufw allow 80/tcp
 ufw allow 443/tcp
 ufw reload
+```
