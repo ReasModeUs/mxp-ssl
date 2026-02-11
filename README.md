@@ -23,9 +23,13 @@ mxp
 ```
 ## 🚀 Key Features
 ✅ Auto-Deploy (Marzban): Full automation for .env and Docker Compose.
+
 ✅ Auto-Deploy (PasarGuard): Direct integration via pg-cli.
+
 ✅ Auto-Deploy (X-UI): Professional path management for Sanaei and other forks.
+
 ✅ Smart Port Release: Automatically detects and stops conflicting services on ports 80/443.
+
 ✅ Maintenance: Easy Update and Uninstall from the menu.
 
 ## 📖 How to use
