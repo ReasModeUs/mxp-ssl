@@ -59,3 +59,5 @@ PasarGuard: ```/var/lib/pasarguard/certs/```
 
 ## 🔄 Update & Uninstall
 You can update the script to the latest version or uninstall it completely directly from the main menu.
+
+<p align="center">Developed with ❤️ for the community</p>
