@@ -32,17 +32,30 @@ curl -Ls https://raw.githubusercontent.com/ReasModeUs/mrz-script/main/mxp-ssl.sh
 ## 📖 How to Use
 Run ```mxp```
 Choose Mode:
+
 Option 1: Single Domain (Best for simple setups).
+
 Option 2: Multi-Domain (Best for CDN/Reality setups with multiple SNIs).
+
 Enter your domain(s) and email.
+
 Select your panel (Marzban, PasarGuard, or None).
+
 Choose validation method:
+
 Port 80 (Standard): Requires port 80 to be open.
+
 Port 443 (ALPN): Requires port 443 to be open.
+
 wf Certificate Paths
+
 ## By default, certificates are saved in:
+
 General: ```/root/certs/<your-domain>/```
+
 Marzban: ```/var/lib/marzban/certs/```
+
 PasarGuard: ```/var/lib/pasarguard/certs/```
+
 ## 🔄 Update & Uninstall
 You can update the script to the latest version or uninstall it completely directly from the main menu.
