@@ -12,12 +12,12 @@
 
 ## 📥 Installation
 
-Run the following command to install the **MXP** tool:
+### Run the following command to install the **MXP** tool:
 
 ```bash
 curl -Ls https://raw.githubusercontent.com/ReasModeUs/mrz-script/main/mxp-ssl.sh -o mxp-ssl.sh && chmod +x mxp-ssl.sh && ./mxp-ssl.sh
 ```
-Once installed, you can simply type the command below anywhere in your terminal to open the manager:
+### Once installed, you can simply type the command below anywhere in your terminal to open the manager:
 ```
 mxp
 ```
