@@ -2,7 +2,7 @@
 
 # ==========================================================
 # MXP SSL Manager (Marzban - X-UI - PasarGuard)
-# Version: 1.0.3
+# Version: 1.0.4
 # Copyright (c) 2026 ReasModeUs
 # GitHub: https://github.com/ReasModeUs
 # ==========================================================
@@ -26,24 +26,45 @@ log_err() { echo -e "${RED}[ERROR] $1${NC}"; echo "[$(date '+%Y-%m-%d %H:%M:%S')
 
 deploy_marzban() {
     local domain=$1; local cert=$2; local key=$3
-    local HOST_CERT_DIR="/var/lib/marzban/certs"
-    mkdir -p "$HOST_CERT_DIR"
-    cp "$cert" "$HOST_CERT_DIR/fullchain.pem"
-    cp "$key" "$HOST_CERT_DIR/key.pem"
     
+    # Locate Marzban ENV
     local env_file=""
     for path in "/opt/marzban/.env" "/var/lib/marzban/.env" "/root/marzban/.env"; do
         [[ -f "$path" ]] && env_file="$path" && break
     done
 
-    if [[ -n "$env_file" ]]; then
-        sed -i '/UVICORN_SSL_CERTFILE/d' "$env_file"
-        sed -i '/UVICORN_SSL_KEYFILE/d' "$env_file"
-        printf "\nUVICORN_SSL_CERTFILE=\"/var/lib/marzban/certs/fullchain.pem\"\nUVICORN_SSL_KEYFILE=\"/var/lib/marzban/certs/key.pem\"\n" >> "$env_file"
-        
-        cd "$(dirname "$env_file")" 
-        docker compose up -d 2>/dev/null || marzban restart 2>/dev/null
-        log_info "Marzban certs deployed and service restarted."
+    if [[ -z "$env_file" ]]; then
+        log_err "Marzban .env file not found! Certs saved in /root/certs only."
+        return
+    fi
+
+    # Determine Cert Directory (Default or relative to install)
+    local MARZBAN_DIR
+    MARZBAN_DIR=$(dirname "$env_file")
+    local HOST_CERT_DIR="/var/lib/marzban/certs"
+    
+    # Create directory and copy files
+    mkdir -p "$HOST_CERT_DIR"
+    cp "$cert" "$HOST_CERT_DIR/fullchain.pem"
+    cp "$key" "$HOST_CERT_DIR/key.pem"
+    chmod 644 "$HOST_CERT_DIR/fullchain.pem" "$HOST_CERT_DIR/key.pem"
+
+    echo -e "${CYAN}--- Marzban Deployment Details ---${NC}"
+    echo -e "Target Dir: $HOST_CERT_DIR"
+    echo -e "Files renamed to: fullchain.pem & key.pem (Standard format)"
+
+    # Update ENV
+    sed -i '/UVICORN_SSL_CERTFILE/d' "$env_file"
+    sed -i '/UVICORN_SSL_KEYFILE/d' "$env_file"
+    printf "\nUVICORN_SSL_CERTFILE=\"$HOST_CERT_DIR/fullchain.pem\"\nUVICORN_SSL_KEYFILE=\"$HOST_CERT_DIR/key.pem\"\n" >> "$env_file"
+    
+    # Restart
+    cd "$MARZBAN_DIR" 
+    if docker compose up -d 2>/dev/null; then
+        log_info "Marzban restarted successfully."
+    else
+        marzban restart 2>/dev/null
+        log_info "Marzban restart command executed."
     fi
 }
 
@@ -57,6 +78,7 @@ deploy_pasarguard() {
     cp "$key" "$PG_DIR/key.pem"
     cp "$cert" "$PG_BACKUP/fullchain.pem"
     cp "$key" "$PG_BACKUP/key.pem"
+    chmod 644 "$PG_DIR/fullchain.pem" "$PG_DIR/key.pem"
 
     if systemctl is-active --quiet pasarguard; then
         systemctl restart pasarguard
@@ -144,15 +166,15 @@ issue_cert() {
             2) deploy_pasarguard "$cp" "$kp" ;;
         esac
 
-        # 2. Save Copy for EVERY domain provided (So user finds them easily)
-        echo -e "\n${CYAN}--- Saving Certificates ---${NC}"
+        # 2. Save Copy for EVERY domain provided
+        echo -e "\n${CYAN}--- Saving Backup Certificates ---${NC}"
         for d in "${DOMAINS[@]}"; do
             mkdir -p "/root/certs/$d"
             cp "$cp" "/root/certs/$d/public.crt"
             cp "$kp" "/root/certs/$d/private.key"
             echo -e "${GREEN}Mapped: $d -> /root/certs/$d/${NC}"
         done
-        echo -e "${YELLOW}(Note: The file content is the same for all, as it includes all domains)${NC}"
+        echo -e "${YELLOW}(Note: The file content is the same for all)${NC}"
 
     else
         log_err "SSL issuance failed. Check DNS or Firewall."
@@ -178,7 +200,6 @@ revoke_cert() {
     if [[ "$confirm" == "y" ]]; then
         "$ACME_SCRIPT" --revoke -d "$domain" --ecc
         "$ACME_SCRIPT" --remove -d "$domain" --ecc
-        # Try to remove folder, user might have multiple folders now
         rm -rf "/root/certs/$domain"*
         rm -rf "$HOME/.acme.sh/${domain}_ecc"
         log_info "Revoked and deleted: $domain"
@@ -193,7 +214,7 @@ update_script() {
     if [[ -f "$SCRIPT_PATH.tmp" ]]; then
         mv "$SCRIPT_PATH.tmp" "$SCRIPT_PATH"
         chmod +x "$SCRIPT_PATH"
-        log_info "Updated to v1.0.4. Restart script."
+        log_info "Updated to v1.0.5. Restart script."
         exit 0
     else
         log_err "Update failed."
@@ -212,7 +233,7 @@ uninstall_script() {
 show_menu() {
     clear
     echo -e "${CYAN}==============================================${NC}"
-    echo -e "      MXP SSL Manager  |  v1.0.4"
+    echo -e "      MXP SSL Manager  |  v1.0.5"
     echo -e "      [M]arzban - [X]-UI - [P]asarGuard"
     echo -e "${CYAN}==============================================${NC}"
     echo "1) Single Domain SSL (e.g. site.com)"
